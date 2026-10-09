@@ -17,8 +17,8 @@ three years of data, so the first load takes a few seconds.
 > - name clusters in two passes: each one in isolation first, then all together to remove duplicates;
 > - render it with [datamapplot](https://github.com/TutteInstitute/datamapplot).
 >
-> We found it through [Daniel Svonava's LinkedIn post](https://www.linkedin.com/feed/update/urn:li:activity:7401292344811028481/)
-> walking through Jay's three-phase pipeline. The original 2025-only rebuild, kept close to Jay's design,
+> [Daniel Svonava's LinkedIn post](https://www.linkedin.com/feed/update/urn:li:activity:7401292344811028481/)
+> walks through Jay's three-phase pipeline. The original 2025-only rebuild, kept close to Jay's design,
 > is in `v1/`. Everything else here extends that idea.
 
 ## What's in the map
@@ -29,12 +29,13 @@ three years of data, so the first load takes a few seconds.
 | **Trend map** | All years share one 2D layout, so a region means the same thing every year. The year chips filter the map, and the subtitle's paper count follows the selection. The **Trends** panel ranks topics by change in *share* of all papers (fastest growing / shrinking / largest) at each zoom level, with per-year counts. Clicking a topic highlights its papers, zooms to its label and shows an LLM-written *"What's new in YYYY"* note. "Color by → Topic growth" paints the whole map by growth. |
 | **Topic tree** | Clicking any category zooms until that category's own label is visible, centred in the part of the map not covered by panels. Broader labels win label collisions, so this sometimes means zooming in quite far. |
 | **Where does my paper fit?** | Paste an abstract and click **Find closest papers**. It's embedded **in your browser** (transformers.js + Qwen3-Embedding-0.6B in q4f16, a one-time ~570 MB download). The modal then lists the closest topic and the 12 nearest papers, and nothing leaves the browser. **Place it on the map** pins it, highlights those papers and closes the modal. The toolbar's **📍 My paper** flies back to the pin and its results; **✕** releases the pin and resets the view. |
+| **Navigation** | Zoom controls at the bottom right: **+ / −**, **⊙** zoom to the highlighted papers (search results, a year, a lasso selection, a Trends topic), **⤢** fit the whole map, and **↺** reset to the opening state: view, year filter, search, highlights, pin and colour mode. Keyboard: **+ / −**, **0** fit, **R** reset. |
 | **Agenda builder** | Star papers from the detail panel, or lasso a region and click *"+ Add N selected"*. The agenda is grouped by day in venue-local time (Sydney / Paris / Atlanta in 2026) and flags overlapping sessions. Export it as **.ics** (calendar) or CSV. It's saved in the browser and shared across the three map pages. |
 | **Richer paper data** | Semantic Scholar citation counts and within-year percentiles, arXiv links, code links found in abstracts, author institutions. Color modes for first-author institution, citations, code availability, session type, contribution type and NeurIPS primary area. Search covers titles, authors, institutions, tags and topics. |
 | **Trust signals** | An LLM-as-judge audit spot-checks the AI-written summaries against the abstracts (`data/audit_report.md`). Papers it flags show a warning in their detail panel. |
 | **Mobile + hosting** | A responsive layout (bottom-sheet details, compact toolbar). `--hosted` builds split the data into lazily loaded files, and a GitHub Pages workflow publishes them. |
 
-Plus the datamapplot basics: hover previews, a click-through detail panel, multi-level labels, and lasso → sortable, exportable table.
+Plus the datamapplot basics: hover previews, a click-through detail panel, and multi-level labels.
 
 ## Pipeline (`pipeline/`)
 

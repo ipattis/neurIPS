@@ -9,13 +9,22 @@
 #nx-nav .active { background: #2457c5; color: #fff; border-color: #2457c5; }
 #nx-lasso-add { background: #fff3c4 !important; border-color: #e6c84a !important; }
 #nx-pin { display: inline-flex; }
+#nx-github { display: inline-flex; align-items: center; gap: 5px; }
+#nx-github.hidden { display: none !important; }
+.nx-gh-count { font-size: 12px; color: #555; border-left: 1px solid #ddd; padding-left: 5px; }
+.nx-gh-count b { font-weight: 600; }
 #nx-pin-show { background: #fde8e8 !important; border-color: #e62828 !important; border-radius: 16px 0 0 16px !important; }
 #nx-pin-remove { border-color: #e62828 !important; border-left: none !important; border-radius: 0 16px 16px 0 !important; padding: 5px 9px !important; }
 .hidden { display: none !important; }
 .stack.top-left { transform: translateY(50px); }  /* make room for the toolbar above datamapplot's title */
 
+/* datamapplot's loading progress box has an inline width of 500px. On phones it overflowed the screen while
+   loading, so mobile Chrome widened the layout viewport (390 -> 473px) and the map and zoom buttons stayed
+   sized to that wider viewport, off the right edge. Cap it to the screen. */
+#progress-container { width: min(500px, calc(100vw - 56px)) !important; box-sizing: border-box; }  /* 56px allows for its 16px container margin */
+
 /* ---- Zoom controls ---- */
-#nx-zoom { position: fixed; right: 16px; bottom: 64px; z-index: 900; display: flex; flex-direction: column;
+#nx-zoom { position: fixed; right: 16px; bottom: 64px; z-index: 900; transition: right .2s ease, bottom .2s ease; display: flex; flex-direction: column;
   background: #fff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.18); overflow: hidden; }
 #nx-zoom button { width: 38px; height: 38px; border: none; border-bottom: 1px solid #e6e6e6; background: #fff;
   font: 500 20px/1 Roboto, sans-serif; color: #333; cursor: pointer; }
@@ -103,12 +112,22 @@ button.nx-primary.saved { background: #1d6b39; border-color: #1d6b39; }
   #nx-fit-btn { display: none; }
   #title-container { display: none !important; }
   #topic-tree, .stack.top-left > :not(#search-container) { display: none !important; }
-  .stack.top-left { transform: translateY(72px); }
+  .stack.top-left { transform: translateY(100px); }  /* below the toolbar, which wraps to three rows */
   #search-container { max-width: 60vw; }
-  .stack.bottom-left { transform: scale(.85); transform-origin: bottom left; }
+  /* keep datamapplot's scaleY(-1) flip on bottom stacks (its boxes un-flip themselves), then shrink */
+  .stack.bottom-left { transform: scaleY(-1) scale(.85); transform-origin: center left; }
   .nx-sheet { top: auto; bottom: 0; width: 100vw; max-width: 100vw; height: 72vh; border-radius: 14px 14px 0 0;
     box-shadow: 0 -4px 18px rgba(0,0,0,.2); padding: 18px 16px 40px; }
   .deck-tooltip { display: none !important; }  /* tap opens the detail sheet instead */
   #nx-zoom { right: 10px; bottom: 76px; }
+  /* datamapplot gives the colour menu a fixed ~400px inline width, which widened the whole page past the
+     screen on phones (pushing the zoom buttons off the right edge). */
+  html, body { overflow-x: hidden; max-width: 100vw; }
+  /* Below 768px datamapplot hides every corner stack except top-left; keep the colour menu (bottom-left),
+     narrow enough to clear the zoom buttons on the right. */
+  .stack.bottom-left { display: flex !important; }
+  #colormap-selector-container, #colormap-selector-container .color-map-dropdown,
+  #colormap-selector-container .color-map-options {
+    width: auto !important; max-width: calc(100vw - 96px) !important; box-sizing: border-box; }
   #nx-zoom button { width: 44px; height: 44px; }  /* touch-sized */
 }

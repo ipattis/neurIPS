@@ -9,12 +9,14 @@ and an agenda (saved in the browser, exportable as .ics/CSV) that works across a
 import argparse
 import base64
 import json
+import re
+import subprocess
 from pathlib import Path
 
 import datamapplot
 import numpy as np
 import pandas as pd
-from datamapplot.selection_handlers import DataTable
+from datamapplot.selection_handlers import SelectionHandlerBase
 
 from common import COMBINED, SEARCH_DIM, SEARCH_MODEL_ONNX, SITE, VIEWS, load_enrichment, load_papers
 
@@ -40,6 +42,17 @@ HOVER_TEMPLATE = """
   <div style="font-size:10.5px;opacity:.55;margin-top:6px">Click for details</div>
 </div>
 """
+
+
+def github_repo():
+    """'owner/name' of this repo's GitHub origin (for the toolbar's star/fork counters), or None."""
+    try:
+        url = subprocess.run(["git", "remote", "get-url", "origin"], capture_output=True, text=True,
+                             cwd=Path(__file__).parent, check=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    m = re.search(r"github\.com[:/]([^/]+/[^/]+?)(?:\.git)?$", url)
+    return m.group(1) if m else None
 
 
 def load_trends(view):
@@ -142,6 +155,7 @@ def build_view(view, papers, enrich, ext, audit, search_b64, years, hosted):
         "views": [{"key": k, "file": f, "label": l, "help": h} for k, (f, l, h) in PAGES.items()],
         "years": [str(y) for y in years],
         "yearCounts": {str(y): int(n) for y, n in df["year"].value_counts().items()},
+        "repo": github_repo(),
         "latestYear": str(years[-1]),
         "trends": trend_lookup,
         "trendLayers": trend_layers,
@@ -171,9 +185,9 @@ def build_view(view, papers, enrich, ext, audit, search_b64, years, hosted):
         search_field="search",
         enable_topic_tree=True,
         on_click="showPaper(index);",
-        # download_formats=[] falls back to both CSV and JSON in datamapplot, so name neither to drop the buttons.
-        selection_handler=DataTable(columns=["hover_text", "year", "kind", "cluster", "citations"], location="bottom-drawer",
-                                    max_rows_per_page=25, download_formats=["none"]),
+        # datamapplot only enables lasso selection when a selection handler exists. A bare handler keeps
+        # lasso (used by "+ Add N selected to agenda" in app.js) without the pull-up table drawer.
+        selection_handler=SelectionHandlerBase(),
         colormap_rawdata=colormap_rawdata,
         colormap_metadata=colormap_metadata,
         custom_html=(WEB / "app.html").read_text(),

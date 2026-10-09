@@ -24,6 +24,21 @@
     const vp = datamap.deckgl.getViewports()[0];
     return { longitude: vp.longitude, latitude: vp.latitude, zoom: vp.zoom, pitch: 0, bearing: 0 };
   }
+  // The opening view, captured once datamapplot has finished placing the initial camera after load.
+  let initialView = null;
+  whenData(() => {
+    let last = null; const t0 = performance.now();
+    const poll = setInterval(() => {
+      const vp = datamap.deckgl.getViewports()[0];
+      const key = `${vp.zoom.toFixed(4)},${vp.longitude.toFixed(5)},${vp.latitude.toFixed(5)}`;
+      if (key === last || performance.now() - t0 > 5000) {
+        initialView = initialView || { longitude: vp.longitude, latitude: vp.latitude, zoom: vp.zoom };
+        clearInterval(poll);
+      }
+      last = key;
+    }, 250);
+  });
+
   function goTo(v, ms = 900) {
     const vs = { ...currentView(), ...v, transitionDuration: ms };
     pendingView = { vs, until: performance.now() + ms };
@@ -46,9 +61,7 @@
     const n = y === "All" ? total : NX.yearCounts[y] || 0;
     subtitle.textContent = `${n.toLocaleString("en-US")} accepted papers${y === "All" ? "" : ` in ${y}`}${subtitleRest}`;
   }
-  $("nx-years").addEventListener("click", (e) => {
-    const y = e.target.dataset.year;
-    if (!y) return;
+  function setYear(y) {
     updateCount(y);
     [...$("nx-years").children].forEach((b) => b.classList.toggle("active", b.dataset.year === y));
     whenData(() => {
@@ -57,7 +70,8 @@
       datamap.metaData.year.forEach((v, i) => { if (String(v) === y) idx.push(i); });
       datamap.addSelection(idx, "year-filter");
     });
-  });
+  }
+  $("nx-years").addEventListener("click", (e) => { if (e.target.dataset.year) setYear(e.target.dataset.year); });
   document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => $(b.dataset.close).classList.add("hidden")));
   document.addEventListener("keydown", (e) => {
     // Escape closes side panels but not the "where does my paper fit?" modal: it stays open until the
@@ -300,8 +314,17 @@
   $("nx-zoom-out").onclick = () => zoomBy(-1);
   $("nx-zoom-fit").onclick = () => goTo(homeView(), 900);
   $("nx-zoom-sel").onclick = zoomToSelection;
-  // The "zoom to selection" button is only active while something is highlighted.
-  setInterval(() => { $("nx-zoom-sel").disabled = datamap.getSelectedIndices().size === 0; }, 400);
+  // The "zoom to selection" button is only active while something is highlighted, and the whole stack
+  // moves clear of an open side panel (desktop: beside it; mobile bottom sheet: above it).
+  setInterval(() => {
+    $("nx-zoom-sel").disabled = datamap.getSelectedIndices().size === 0;
+    const sheet = [...document.querySelectorAll(".nx-sheet")].find((el) => !el.classList.contains("hidden"));
+    const z = $("nx-zoom"), mobile = window.innerWidth <= 760;
+    if (!sheet) { z.style.right = ""; z.style.bottom = ""; return; }
+    const r = sheet.getBoundingClientRect();
+    if (mobile) z.style.bottom = `${window.innerHeight - r.top + 12}px`;
+    else z.style.right = `${window.innerWidth - r.left + 16}px`;
+  }, 200);
 
   document.addEventListener("keydown", (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;  // leave browser zoom (Cmd/Ctrl +/-) alone
@@ -496,15 +519,15 @@
 
   // Release the pin: remove it and its neighbour highlight and reset the view. The text and the
   // results stay in the modal, so the user can place it again or edit and re-run.
-  function removePin() {
+  function removePin(fly = true) {
     datamap.layers = datamap.layers.filter((l) => l.id !== "my-paper-pin");
     datamap.deckgl.setProps({ layers: datamap.layers });
     datamap.removeSelection("my-paper");
     pinView = null;
     $("nx-pin").classList.add("hidden");
-    flyTo(homeView());
+    if (fly) flyTo(homeView());
   }
-  $("nx-pin-remove").onclick = removePin;
+  $("nx-pin-remove").onclick = () => removePin();
   $("nx-pin-show").onclick = () => {
     if (pinView) flyTo({ ...pinView, zoom: Math.max(currentView().zoom, homeView().zoom + 2.5) });
     $("fit-modal").classList.remove("hidden");  // shows the nearest-papers list again
@@ -525,6 +548,55 @@
     $("nx-pin").classList.remove("hidden");
     goTo({ longitude: x, latitude: y, zoom: Math.max(currentView().zoom, homeView().zoom + 2.5) });
   }
+
+  // ---------------- GitHub link with live star / fork counts ----------------
+  // Counts come from GitHub's public API (60 unauthenticated requests/hour per visitor), cached for an
+  // hour in sessionStorage. If the request fails (offline, rate-limited, private repo) the link still shows.
+  if (NX.repo) {
+    const gh = $("nx-github");
+    gh.href = `https://github.com/${NX.repo}`; gh.classList.remove("hidden");
+    const show = (d) => {
+      [["nx-gh-stars", d.stargazers_count], ["nx-gh-forks", d.forks_count]].forEach(([id, n]) => {
+        if (typeof n !== "number") return;
+        $(id).querySelector("b").textContent = n >= 1000 ? `${(n / 1000).toFixed(1)}k` : n;
+        $(id).classList.remove("hidden");
+      });
+    };
+    const key = `gh-counts:${NX.repo}`;
+    let cached = null;
+    try { cached = JSON.parse(sessionStorage.getItem(key)); } catch {}
+    if (cached && Date.now() - cached.t < 3600e3) show(cached.d);
+    else fetch(`https://api.github.com/repos/${NX.repo}`, { headers: { Accept: "application/vnd.github+json" } })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((d) => { show(d); try { sessionStorage.setItem(key, JSON.stringify({ t: Date.now(), d: { stargazers_count: d.stargazers_count, forks_count: d.forks_count } })); } catch {} })
+      .catch(() => {});
+  }
+
+  // ---------------- Reset to the opening state ----------------
+  // Restores the view and every filter/highlight to how the page opened. The agenda and any pasted
+  // abstract are the user's own data, so they are kept.
+  function resetAll() {
+    setYear("All");
+    const search = $("text-search");
+    if (search && search.value) { search.value = ""; datamap.searchText(""); }
+    datamap.removeSelection("trend-topic");
+    openTopic = null; $("trends-clear").classList.add("hidden");
+    const lasso = datamap.lassoSelector;
+    if (lasso) { lasso.handleSelection([]); lasso.ctx?.clearRect(0, 0, lasso.canvas.width, lasso.canvas.height); }
+    if (pinView) removePin(false);
+    const firstColormap = document.querySelector(".color-map-option");
+    if (firstColormap) firstColormap.click();  // "Clusters", the default colouring
+    ["paper-panel", "agenda-panel", "trends-panel"].forEach((id) => $(id).classList.add("hidden"));
+    goTo(initialView || homeView(), 900);
+  }
+  $("nx-reset").onclick = resetAll;
+  document.addEventListener("keydown", (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey || (e.key !== "r" && e.key !== "R")) return;
+    const t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    if (!$("fit-modal").classList.contains("hidden")) return;
+    resetAll(); e.preventDefault();
+  });
 
   renderAgendaCount();
 })();
