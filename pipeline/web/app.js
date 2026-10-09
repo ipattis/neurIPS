@@ -15,8 +15,21 @@
     return pidIndex.get(pid);
   };
 
-  let viewState = { ...datamap.deckgl.props.initialViewState };
-  datamap.onViewStateChange("nx-track", ({ viewState: vs }) => { viewState = vs; });
+  // All programmatic camera moves go through goTo(). The current view is read from deck.gl itself
+  // (datamapplot adjusts the initial view after loading, so a value captured at startup goes stale);
+  // while a move is still animating, its target counts as current so rapid clicks stack properly.
+  let pendingView = null;
+  function currentView() {
+    if (pendingView && performance.now() < pendingView.until) return pendingView.vs;
+    const vp = datamap.deckgl.getViewports()[0];
+    return { longitude: vp.longitude, latitude: vp.latitude, zoom: vp.zoom, pitch: 0, bearing: 0 };
+  }
+  function goTo(v, ms = 900) {
+    const vs = { ...currentView(), ...v, transitionDuration: ms };
+    pendingView = { vs, until: performance.now() + ms };
+    datamap.deckgl.setProps({ initialViewState: vs });
+    datamap.notifyViewStateChange(vs);
+  }
 
   // ---------------- Navigation ----------------
   $("nx-views").innerHTML = NX.views.map((v) =>
@@ -230,7 +243,7 @@
     const [x0, x1, y0, y1] = d.bounds || [d.x, d.x, d.y, d.y];
     // Start from "fit the category in the visible area" (512 px tiles), then zoom in as needed.
     const fit = Math.min(Math.log2(360 / (Math.max(x1 - x0, 1e-3) / (area.width / 512))),
-                         Math.log2(180 / (Math.max(y1 - y0, 1e-3) / (area.H / 512)))) - 0.2;
+                         Math.log2(360 / (Math.max(y1 - y0, 1e-3) / (area.H / 512)))) - 0.2;
     const rivals = labelData().filter((o) => o !== d && (o.collision_priority ?? o.size) >= (d.collision_priority ?? d.size));
     let target = null;
     for (let z = fit; z <= fit + 9; z += 0.25) {
@@ -244,10 +257,8 @@
       if (!blocked) { target = v; break; }
     }
     target = target || viewFor(d, fit + 9, area);
-    const vs = { ...viewState, ...target, transitionDuration: 1000 };
-    datamap.deckgl.setProps({ initialViewState: vs });
-    datamap.notifyViewStateChange(vs);
-    return vs;
+    goTo(target, 1000);
+    return target;
   }
   window.zoomToShowLabel = zoomToShowLabel;
 
@@ -260,6 +271,46 @@
     e.stopPropagation(); e.preventDefault();
     zoomToShowLabel(d);
   }, true);
+
+  // ---------------- Zoom controls: + / − / zoom to selection / fit, plus keyboard + − 0 ----------------
+  // Frame a set of points (trimmed so a few outliers don't zoom the map out) in the visible area.
+  function frame(indices, trim) {
+    const pos = datamap.pointLayer.props.data.attributes.getPosition.value;
+    const q = (arr, f) => { const a = Float64Array.from(arr).sort(); return a[Math.floor(f * (a.length - 1))]; };
+    const xs = indices.map((i) => pos[2 * i]), ys = indices.map((i) => pos[2 * i + 1]);
+    const [x0, x1, y0, y1] = [q(xs, trim), q(xs, 1 - trim), q(ys, trim), q(ys, 1 - trim)];
+    const area = visibleArea();
+    const zoom = Math.min(Math.log2(360 / (Math.max(x1 - x0, 1e-3) / (area.width / 512))),
+                          Math.log2(360 / (Math.max(y1 - y0, 1e-3) / (area.H / 512)))) - 0.3;
+    return viewFor({ x: (x0 + x1) / 2, y: (y0 + y1) / 2 }, zoom, area);
+  }
+  let homeCache = null;
+  const homeView = () => (homeCache ||= frame(Array.from({ length: datamap.metaData.pid.length }, (_, i) => i), 0.005));
+  const clampZoom = (z) => Math.min(homeView().zoom + 14, Math.max(homeView().zoom - 1.5, z));
+  const setView = (v, ms = 350) => goTo({ ...v, zoom: clampZoom(v.zoom ?? currentView().zoom) }, ms);
+  const zoomBy = (dz) => setView({ zoom: currentView().zoom + dz });
+
+  // Frame the highlighted papers (search, year filter, lasso, trend topic, "my paper" neighbours).
+  function zoomToSelection() {
+    const sel = Array.from(datamap.getSelectedIndices());
+    if (!sel.length) return;
+    setView(frame(sel, sel.length > 20 ? 0.05 : 0), 900);  // ignore far-flung outliers in big selections
+  }
+  $("nx-zoom-in").onclick = () => zoomBy(1);
+  $("nx-zoom-out").onclick = () => zoomBy(-1);
+  $("nx-zoom-fit").onclick = () => goTo(homeView(), 900);
+  $("nx-zoom-sel").onclick = zoomToSelection;
+  // The "zoom to selection" button is only active while something is highlighted.
+  setInterval(() => { $("nx-zoom-sel").disabled = datamap.getSelectedIndices().size === 0; }, 400);
+
+  document.addEventListener("keydown", (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;  // leave browser zoom (Cmd/Ctrl +/-) alone
+    const t = e.target, typing = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+    if (typing || !$("fit-modal").classList.contains("hidden")) return;
+    if (e.key === "+" || e.key === "=") { zoomBy(1); e.preventDefault(); }
+    else if (e.key === "-" || e.key === "_") { zoomBy(-1); e.preventDefault(); }
+    else if (e.key === "0") { goTo(homeView(), 900); e.preventDefault(); }
+  });
 
   // ---------------- Trends panel ----------------
   // NX.trendLayers: [{layer, label}] coarse -> fine; NX.trends["layer:id"] = {name, counts, growth, label, whats_new}
@@ -319,14 +370,14 @@
     const xs = idx.map((i) => pos[2 * i]), ys = idx.map((i) => pos[2 * i + 1]);
     const [x0, x1, y0, y1] = [q(xs, 0.1), q(xs, 0.9), q(ys, 0.1), q(ys, 0.9)];
     const panel = window.innerWidth > 760 ? 440 : 0, w = window.innerWidth - panel, h = window.innerHeight;
-    // deck.gl web-mercator tiles are 512 px: at zoom z the world (360°) spans 512 * 2^z pixels.
-    const zoom = Math.min(Math.log2(360 / ((x1 - x0 || 1e-3) / (w / 512))), Math.log2(180 / ((y1 - y0 || 1e-3) / (h / 512)))) - 0.3;
+    // deck.gl web-mercator tiles are 512 px: at zoom z the world (360°) spans 512 * 2^z pixels, and near
+    // the data's centre latitude scales the same as longitude (datamapplot's own helper uses 180° for y,
+    // which zooms a full level too far out whenever height is the limiting side).
+    const zoom = Math.min(Math.log2(360 / ((x1 - x0 || 1e-3) / (w / 512))), Math.log2(360 / ((y1 - y0 || 1e-3) / (h / 512)))) - 0.3;
     const degPerPx = 360 / (512 * Math.pow(2, zoom));
     const label = findLabelByName(NX.trends[key]?.name || "");
     if (label) { zoomToShowLabel(label); return; }  // centre on its map label and make sure it renders
-    const vs = { ...viewState, longitude: (x0 + x1) / 2 + (panel / 2) * degPerPx, latitude: (y0 + y1) / 2, zoom, transitionDuration: 900 };
-    datamap.deckgl.setProps({ initialViewState: vs });
-    datamap.notifyViewStateChange(vs);
+    goTo({ longitude: (x0 + x1) / 2 + (panel / 2) * degPerPx, latitude: (y0 + y1) / 2, zoom });
   }
   $("trends-list").addEventListener("click", (e) => {
     const row = e.target.closest(".trend-row");
@@ -416,13 +467,8 @@
   $("fit-results").addEventListener("click", (e) => { const li = e.target.closest("li"); if (li) showPaper(+li.dataset.i); });
 
   let pinView = null;
-  const homeView = { ...datamap.deckgl.props.initialViewState };
 
-  function flyTo(v) {
-    const vs = { ...viewState, ...v, transitionDuration: 900 };
-    datamap.deckgl.setProps({ initialViewState: vs });
-    datamap.notifyViewStateChange(vs);
-  }
+  const flyTo = (v) => goTo(v);
 
   // Release the pin: remove it and its neighbour highlight and reset the view. The text and the
   // results stay in the modal, so the user can place it again or edit and re-run.
@@ -432,11 +478,11 @@
     datamap.removeSelection("my-paper");
     pinView = null;
     $("nx-pin").classList.add("hidden");
-    flyTo(homeView);
+    flyTo(homeView());
   }
   $("nx-pin-remove").onclick = removePin;
   $("nx-pin-show").onclick = () => {
-    if (pinView) flyTo({ ...pinView, zoom: Math.max(viewState.zoom ?? 0, homeView.zoom + 2.5) });
+    if (pinView) flyTo({ ...pinView, zoom: Math.max(currentView().zoom, homeView().zoom + 2.5) });
     $("fit-modal").classList.remove("hidden");  // shows the nearest-papers list again
   };
 
@@ -453,10 +499,7 @@
     datamap.deckgl.setProps({ layers: datamap.layers });
     pinView = { longitude: x, latitude: y };
     $("nx-pin").classList.remove("hidden");
-    const base = datamap.deckgl.props.initialViewState.zoom;
-    const vs = { ...viewState, longitude: x, latitude: y, zoom: Math.max(viewState.zoom ?? base, base + 2.5), transitionDuration: 900 };
-    datamap.deckgl.setProps({ initialViewState: vs });
-    datamap.notifyViewStateChange(vs);
+    goTo({ longitude: x, latitude: y, zoom: Math.max(currentView().zoom, homeView().zoom + 2.5) });
   }
 
   renderAgendaCount();

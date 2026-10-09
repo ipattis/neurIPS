@@ -171,7 +171,9 @@ def build_view(view, papers, enrich, ext, audit, search_b64, years, hosted):
         search_field="search",
         enable_topic_tree=True,
         on_click="showPaper(index);",
-        selection_handler=DataTable(columns=["hover_text", "year", "kind", "cluster", "citations"], location="bottom-drawer", max_rows_per_page=25),
+        # download_formats=[] falls back to both CSV and JSON in datamapplot, so name neither to drop the buttons.
+        selection_handler=DataTable(columns=["hover_text", "year", "kind", "cluster", "citations"], location="bottom-drawer",
+                                    max_rows_per_page=25, download_formats=["none"]),
         colormap_rawdata=colormap_rawdata,
         colormap_metadata=colormap_metadata,
         custom_html=(WEB / "app.html").read_text(),
