@@ -75,7 +75,8 @@ button.nx-primary.saved { background: #1d6b39; border-color: #1d6b39; }
 .trend-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
 .trend-name { font-size: 13.5px; font-weight: 600; }
 .trend-x { font-size: 12.5px; font-weight: 700; white-space: nowrap; }
-.trend-x.up { color: #1d6b39; } .trend-x.down { color: #a33a00; }
+.trend-x.up { color: #1d6b39; } .trend-x.down { color: #a33a00; } .trend-x.flat { color: #666; }
+.trend-facts { display: flex; flex-direction: column; gap: 2px; margin-left: 8px; font-size: 11.5px; color: #555; }
 .trend-bars { display: flex; gap: 6px; align-items: flex-end; margin-top: 5px; }
 .trend-bar { display: flex; flex-direction: column; align-items: center; font-size: 10.5px; color: #777; }
 .trend-bar div { width: 34px; background: #9fb6e8; border-radius: 3px 3px 0 0; }

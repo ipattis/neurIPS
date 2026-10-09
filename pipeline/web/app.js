@@ -332,6 +332,21 @@
     renderTrends();
   });
 
+  // Each row shows three clearly labelled numbers, because the topic's raw paper count and its share of
+  // the (fast-growing) conference move very differently: e.g. 522 -> 808 papers is +55%, which in a year
+  // when NeurIPS itself grew 55% is no change in share at all.
+  const yrs = NX.years, last = yrs[yrs.length - 1], prev = yrs[yrs.length - 2], first = yrs[0];
+  const share = (c, y) => (c + 1) / ((NX.yearCounts[y] || 0) + 1);  // same +1 smoothing as 06_trends.py
+  const pct = (r) => `${r >= 1 ? "+" : "−"}${Math.abs(Math.round((r - 1) * 100))}%`;
+  const NEUTRAL = 0.025;  // |share change| below 2.5% is shown as "≈", not as up/down
+
+  function trendSummary() {
+    if (!prev) return "";
+    const g = NX.yearCounts[last] / NX.yearCounts[prev];
+    return `NeurIPS itself grew ${pct(g)} from ${prev} to ${last} (${NX.yearCounts[prev].toLocaleString("en-US")} → ` +
+      `${NX.yearCounts[last].toLocaleString("en-US")} papers), so a topic must grow faster than that to gain share.`;
+  }
+
   function renderTrends() {
     const topics = Object.entries(NX.trends).filter(([k]) => +k.split(":")[0] === trendLayer)
       .map(([k, v]) => ({ key: k, ...v, total: Object.values(v.counts).reduce((a, b) => a + b, 0) }))
@@ -340,20 +355,29 @@
     topics.sort(sorter);
     const maxCount = Math.max(1, ...topics.flatMap((t) => Object.values(t.counts)));
     $("trends-list").innerHTML = topics.slice(0, 40).map((t) => {
-      const x = Math.pow(2, t.growth), up = t.growth >= 0;
-      const bars = NX.years.map((y) => {
-        const c = t.counts[y] ?? 0;
-        return `<div class="trend-bar"><div style="height:${Math.max(2, Math.round(36 * c / maxCount))}px"></div>${y.slice(2)}: ${c}</div>`;
-      }).join("");
+      const c = (y) => t.counts[y] ?? 0;
+      const shareX = Math.pow(2, t.growth);                       // share change, last two years
+      const dir = Math.abs(shareX - 1) < NEUTRAL ? "flat" : shareX > 1 ? "up" : "down";
+      const arrow = { up: "▲", down: "▼", flat: "≈" }[dir];
+      const rawX = c(prev) ? c(last) / c(prev) : null;              // raw paper growth, last two years
+      const longX = yrs.length > 2 ? share(c(last), last) / share(c(first), first) : null;  // share change since first year
+      const bars = yrs.map((y) =>
+        `<div class="trend-bar"><div style="height:${Math.max(2, Math.round(36 * c(y) / maxCount))}px"></div>${y.slice(2)}: ${c(y)}</div>`).join("");
       const open = t.key === openTopic;
       return `<div class="trend-row${open ? " open" : ""}" data-key="${t.key}">
         <div class="trend-head"><span class="trend-name">${esc(t.name)}</span>
-          <span class="trend-x ${up ? "up" : "down"}" title="change in share of papers">${up ? "▲" : "▼"} ${x.toFixed(2)}×</span></div>
-        <div class="trend-bars">${bars}<span class="nx-trend ${esc(t.label)}" style="font-size:11.5px;margin-left:6px">${esc(t.label)}</span></div>
+          <span class="trend-x ${dir}" title="Change in this topic's share of all NeurIPS papers, ${prev} → ${last}">${arrow} share ×${shareX.toFixed(2)}</span></div>
+        <div class="trend-bars">${bars}
+          <div class="trend-facts">
+            ${rawX !== null ? `<span title="Raw change in paper count, ${prev} → ${last}">${pct(rawX)} papers</span>` : ""}
+            ${longX !== null ? `<span title="Change in share of all papers, ${first} → ${last}">share ×${longX.toFixed(2)} since ${first}</span>` : ""}
+            <span class="nx-trend ${esc(t.label)}" title="Label based on the ${prev} → ${last} share change">${esc(t.label)}</span>
+          </div></div>
         ${open && t.whats_new ? `<div class="trend-note"><b>What's new in ${NX.latestYear}:</b> ${esc(t.whats_new)}</div>` : ""}
       </div>`;
     }).join("") || '<p class="nx-muted">No trend data for this level.</p>';
   }
+
 
   function focusTopic(key) {
     const [layer, id] = key.split(":");
@@ -389,7 +413,7 @@
     datamap.removeSelection("trend-topic"); openTopic = null; renderTrends();
     $("trends-clear").classList.add("hidden");
   };
-  $("nx-trends-btn").onclick = () => { renderTrends(); openSheet("trends-panel"); };
+  $("nx-trends-btn").onclick = () => { $("trends-summary").textContent = trendSummary(); renderTrends(); openSheet("trends-panel"); };
 
   // ---------------- Where does my paper fit? ----------------
   let extractor = null, index = null;

@@ -55,8 +55,9 @@
 <aside id="trends-panel" class="nx-sheet hidden">
   <button class="nx-close" data-close="trends-panel" title="Close">&times;</button>
   <h2>Trends <span id="trends-span" class="nx-muted"></span></h2>
-  <p class="nx-muted">Change in each topic's <b>share</b> of all accepted papers (NeurIPS grew in size, so raw counts
-    overstate growth). Click a topic to highlight its papers on the map.</p>
+  <p class="nx-muted">Ranked by change in each topic's <b>share</b> of all accepted papers. Each row also shows
+    the raw change in paper count and the change in share since the first year. Click a topic to highlight its papers.</p>
+  <p class="nx-muted" id="trends-summary"></p>
   <div class="nx-row" id="trends-layers"></div>
   <div class="nx-row" id="trends-sort">
     <button data-sort="up" class="active">Fastest growing</button>
