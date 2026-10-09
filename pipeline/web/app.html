@@ -1,0 +1,78 @@
+<nav id="nx-nav">
+  <div class="nx-group" id="nx-views"></div>
+  <div class="nx-group" id="nx-years"></div>
+  <div class="nx-group">
+    <button id="nx-trends-btn" title="Which topics are growing or shrinking">Trends</button>
+    <button id="nx-fit-btn" title="Paste an abstract to see where it lands">Where does my paper fit?</button>
+    <span id="nx-pin" class="hidden">
+      <button id="nx-pin-show" title="Go back to your paper's pin and its nearest papers">📍 My paper</button>
+      <button id="nx-pin-remove" title="Remove the pin and reset the map">✕</button>
+    </span>
+    <button id="nx-agenda-btn">My agenda (<span id="nx-agenda-count">0</span>)</button>
+    <button id="nx-lasso-add" class="hidden">+ Add <span id="nx-lasso-n">0</span> selected to agenda</button>
+  </div>
+</nav>
+
+<aside id="paper-panel" class="nx-sheet hidden">
+  <button class="nx-close" data-close="paper-panel" title="Close">&times;</button>
+  <div id="paper-badges"></div>
+  <h2 id="paper-title"></h2>
+  <div id="paper-authors"></div>
+  <div id="paper-institutions"></div>
+  <div id="paper-cluster"></div>
+  <button id="paper-agenda" class="nx-primary"></button>
+  <div id="paper-schedule" class="nx-note"></div>
+  <div id="paper-trend" class="nx-note"></div>
+  <div id="paper-flag" class="nx-warn"></div>
+  <div class="paper-section"><h4>Explain like I'm five</h4><p id="paper-eli5"></p></div>
+  <div class="paper-section"><h4>Problem</h4><p id="paper-problem"></p></div>
+  <div class="paper-section"><h4>Method</h4><p id="paper-method"></p></div>
+  <div class="paper-section"><h4>Applications</h4><p id="paper-applications"></p></div>
+  <div id="paper-tags"></div>
+  <details class="paper-section"><summary>Abstract</summary><p id="paper-abstract"></p></details>
+  <div id="paper-links"></div>
+</aside>
+
+<aside id="agenda-panel" class="nx-sheet hidden">
+  <button class="nx-close" data-close="agenda-panel" title="Close">&times;</button>
+  <h2>My agenda</h2>
+  <p class="nx-muted">Saved in this browser. Add papers from the detail panel, or lasso a region of the map.</p>
+  <div class="nx-row">
+    <button id="agenda-ics" class="nx-primary">Export calendar (.ics)</button>
+    <button id="agenda-csv">Export CSV</button>
+    <button id="agenda-clear">Clear</button>
+  </div>
+  <div id="agenda-list"></div>
+</aside>
+
+<aside id="trends-panel" class="nx-sheet hidden">
+  <button class="nx-close" data-close="trends-panel" title="Close">&times;</button>
+  <h2>Trends <span id="trends-span" class="nx-muted"></span></h2>
+  <p class="nx-muted">Change in each topic's <b>share</b> of all accepted papers (NeurIPS grew in size, so raw counts
+    overstate growth). Click a topic to highlight its papers on the map.</p>
+  <div class="nx-row" id="trends-layers"></div>
+  <div class="nx-row" id="trends-sort">
+    <button data-sort="up" class="active">Fastest growing</button>
+    <button data-sort="down">Shrinking</button>
+    <button data-sort="size">Largest</button>
+  </div>
+  <button id="trends-clear" class="hidden">Clear highlight</button>
+  <div id="trends-list"></div>
+</aside>
+
+<div id="fit-modal" class="hidden">
+  <div class="nx-modal-box">
+    <button class="nx-close" data-close="fit-modal" title="Close">&times;</button>
+    <h2>Where does my paper fit?</h2>
+    <p class="nx-muted">Paste a title and abstract. It's embedded <b>in your browser</b> with Qwen3-Embedding-0.6B
+      (a one-time ~570&nbsp;MB model download, then cached) and placed next to its nearest NeurIPS papers.
+      Nothing is sent to a server.</p>
+    <textarea id="fit-text" rows="8" placeholder="Title. Abstract..."></textarea>
+    <div class="nx-row">
+      <button id="fit-go" class="nx-primary">Find closest papers</button>
+      <button id="fit-place" disabled title="Find the closest papers first">Place it on the map</button>
+      <span id="fit-status" class="nx-muted"></span>
+    </div>
+    <ol id="fit-results"></ol>
+  </div>
+</div>
